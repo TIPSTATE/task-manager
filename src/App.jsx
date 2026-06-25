@@ -126,7 +126,7 @@ function App() {
     .filter(task => empresaFilter === 'all' || task.empresa === empresaFilter);
 
   const inProgressRodrigo = tasks.filter(t => t.assignedTo === 'Rodrigo' && t.status === 'in-progress');
-  const inProgressCristian = tasks.filter(t => t.assignedTo === 'Cristian' && t.status === 'in-progress');
+  const inProgressCristian = tasks.filter(t => t.assignedTo === 'Christian' && t.status === 'in-progress');
   const inProgressBecario = tasks.filter(t => t.assignedTo === 'Becario' && t.status === 'in-progress');
 
   if (!currentRole) {
@@ -225,10 +225,10 @@ function App() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               { name: 'Rodrigo', color: '#60a5fa' },
-              { name: 'Cristian', color: '#c084fc' },
+              { name: 'Christian', color: '#c084fc' },
               { name: 'Becario', color: '#34d399' }
             ].map(person => {
-              const list = person.name === 'Rodrigo' ? inProgressRodrigo : person.name === 'Cristian' ? inProgressCristian : inProgressBecario;
+              const list = person.name === 'Rodrigo' ? inProgressRodrigo : person.name === 'Christian' ? inProgressCristian : inProgressBecario;
               return (
                 <div key={person.name} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6">
                   <h3 className="font-semibold mb-4" style={{ color: person.color }}>📌 {person.name}</h3>
@@ -293,7 +293,7 @@ function App() {
                   <label className="text-xs text-gray-400 block mb-1">Asignado a</label>
                   <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
                     <option value="Rodrigo">Rodrigo</option>
-                    <option value="Cristian">Cristian</option>
+                    <option value="Christian">Christian</option>
                     <option value="Becario">Becario</option>
                   </select>
                 </div>
@@ -330,7 +330,7 @@ function App() {
               <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-2xl px-3 py-3 text-xs md:flex-none md:px-5 md:text-sm">
                 <option value="all">Todos los asignados</option>
                 <option value="Rodrigo">Rodrigo</option>
-                <option value="Cristian">Cristian</option>
+                <option value="Christian">Christian</option>
                 <option value="Becario">Becario</option>
               </select>
             </div>
@@ -344,13 +344,14 @@ function App() {
             return (
               <div key={task.id} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6 hover:border-[#eeaa28] transition-all" style={{ animationDelay: `${index * 40}ms` }}>
                 <div className="flex gap-4">
-                  <input
-                    type="checkbox"
-                    checked={task.status === 'completed'}
-                    onChange={() => updateTaskStatus(task.id, task.status === 'completed' ? 'pending' : 'completed')}
-                    className="mt-2 accent-[#eeaa28] w-6 h-6"
-                    disabled={currentRole === 'Alfredo'}
-                  />
+                  {currentRole !== 'Alfredo' && (
+                    <input
+                      type="checkbox"
+                      checked={task.status === 'completed'}
+                      onChange={() => updateTaskStatus(task.id, task.status === 'completed' ? 'pending' : 'completed')}
+                      className="mt-2 accent-[#eeaa28] w-6 h-6"
+                    />
+                  )}
 
                   <div className="flex-1">
                     {editingId === task.id ? (
