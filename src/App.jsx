@@ -1,18 +1,5 @@
 import { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBTBu3ZT0jjP_2ENmK1g7OO9BTG4-jQ8FU",
-  authDomain: "taskflow-tipstate.firebaseapp.com",
-  projectId: "taskflow-tipstate",
-  storageBucket: "taskflow-tipstate.firebasestorage.app",
-  messagingSenderId: "594039975908",
-  appId: "1:594039975908:web:0b8d4f3acf27d92671a1f1"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+import { subscribeToTasks, createTask, updateTask, deleteTask } from './lib/tasks';
 
 const COMPANY_LOGOS = [
   { src: '/LOGO_TIPSTATE.png', alt: 'Tipstate' },
@@ -46,19 +33,15 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const tasksList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setTasks(tasksList);
-    });
-    return () => unsubscribe();
+    const unsubscribe = subscribeToTasks(setTasks);
+    return unsubscribe;
   }, []);
 
   const addTask = async (e) => {
     e.preventDefault();
     if (!newTask.trim() || !dueDate) return;
 
-    await addDoc(collection(db, "tasks"), {
+    await createTask({
       text: newTask.trim(),
       priority,
       dueDate,
@@ -66,7 +49,6 @@ function App() {
       assignedTo,
       empresa,
       status,
-      createdAt: new Date().toISOString()
     });
 
     setNewTask('');
@@ -79,11 +61,11 @@ function App() {
   };
 
   const updateTaskStatus = async (id, newStatus) => {
-    await updateDoc(doc(db, "tasks", id), { status: newStatus });
+    await updateTask(id, { status: newStatus });
   };
 
-  const deleteTask = async (id) => {
-    await deleteDoc(doc(db, "tasks", id));
+  const deleteTaskById = async (id) => {
+    await deleteTask(id);
   };
 
   const startEditing = (task) => {
@@ -93,7 +75,7 @@ function App() {
 
   const saveEdit = async () => {
     if (!editText.trim() || !editingId) return;
-    await updateDoc(doc(db, "tasks", editingId), { text: editText.trim() });
+    await updateTask(editingId, { text: editText.trim() });
     setEditingId(null);
     setEditText('');
   };
@@ -405,7 +387,7 @@ function App() {
                     <button onClick={() => startEditing(task)} aria-label="Editar" className="px-3 py-2 md:px-5 hover:bg-gray-700 rounded-2xl transition-colors">
                       ✏️<span className="hidden md:inline"> Editar</span>
                     </button>
-                    <button onClick={() => deleteTask(task.id)} aria-label="Eliminar" className="px-3 py-2 md:px-5 hover:bg-red-900/50 text-red-400 rounded-2xl transition-colors">
+                    <button onClick={() => deleteTaskById(task.id)} aria-label="Eliminar" className="px-3 py-2 md:px-5 hover:bg-red-900/50 text-red-400 rounded-2xl transition-colors">
                       🗑️<span className="hidden md:inline"> Eliminar</span>
                     </button>
                   </div>
