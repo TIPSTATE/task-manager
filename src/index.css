@@ -55,3 +55,12 @@ input[type="time"]:focus {
   outline: none;
   box-shadow: 0 0 0 3px rgba(238, 170, 40, 0.15);
 }
+
+@keyframes bounce-logo {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+.animate-bounce-logo {
+  animation: bounce-logo 1.2s infinite ease-in-out;
+}

@@ -1,42 +1,59 @@
 import { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy } from 'firebase/firestore';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBTBu3ZT0jjP_2ENmK1g7OO9BTG4-jQ8FU",
+  authDomain: "taskflow-tipstate.firebaseapp.com",
+  projectId: "taskflow-tipstate",
+  storageBucket: "taskflow-tipstate.firebasestorage.app",
+  messagingSenderId: "594039975908",
+  appId: "1:594039975908:web:0b8d4f3acf27d92671a1f1"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 function App() {
+  const [currentRole, setCurrentRole] = useState(null);
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [priority, setPriority] = useState('media');
   const [dueDate, setDueDate] = useState('');
   const [dueTime, setDueTime] = useState('12:00');
   const [assignedTo, setAssignedTo] = useState('Rodrigo');
+  const [empresa, setEmpresa] = useState('Tipstate');
   const [status, setStatus] = useState('pending');
 
   const [filter, setFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
+  const [empresaFilter, setEmpresaFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
 
   useEffect(() => {
-    const saved = localStorage.getItem('tasks');
-    if (saved) setTasks(JSON.parse(saved));
+    const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const tasksList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTasks(tasksList);
+    });
+    return () => unsubscribe();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-
-  const addTask = (e) => {
+  const addTask = async (e) => {
     e.preventDefault();
     if (!newTask.trim() || !dueDate) return;
 
-    setTasks([{
-      id: Date.now(),
+    await addDoc(collection(db, "tasks"), {
       text: newTask.trim(),
       priority,
       dueDate,
       dueTime,
       assignedTo,
+      empresa,
       status,
       createdAt: new Date().toISOString()
-    }, ...tasks]);
+    });
 
     setNewTask('');
     setPriority('media');
@@ -44,20 +61,22 @@ function App() {
     setDueTime('12:00');
   };
 
-  const updateTaskStatus = (id, newStatus) => {
-    setTasks(tasks.map(task => task.id === id ? { ...task, status: newStatus } : task));
+  const updateTaskStatus = async (id, newStatus) => {
+    await updateDoc(doc(db, "tasks", id), { status: newStatus });
   };
 
-  const deleteTask = (id) => setTasks(tasks.filter(task => task.id !== id));
+  const deleteTask = async (id) => {
+    await deleteDoc(doc(db, "tasks", id));
+  };
 
   const startEditing = (task) => {
     setEditingId(task.id);
     setEditText(task.text);
   };
 
-  const saveEdit = () => {
-    if (!editText.trim()) return;
-    setTasks(tasks.map(task => task.id === editingId ? { ...task, text: editText.trim() } : task));
+  const saveEdit = async () => {
+    if (!editText.trim() || !editingId) return;
+    await updateDoc(doc(db, "tasks", editingId), { text: editText.trim() });
     setEditingId(null);
     setEditText('');
   };
@@ -98,52 +117,99 @@ function App() {
     return rem === 0 ? `${days} día${days > 1 ? 's' : ''}` : `${days} día${days > 1 ? 's' : ''} y ${rem} hora${rem > 1 ? 's' : ''}`;
   };
 
-  const filteredTasks = tasks.filter(task => {
-    if (filter === 'pending') return task.status !== 'completed';
-    if (filter === 'completed') return task.status === 'completed';
-    return true;
-  }).filter(task => assigneeFilter === 'all' || task.assignedTo === assigneeFilter);
+  const filteredTasks = tasks
+    .filter(task => {
+      if (filter === 'pending') return task.status !== 'completed';
+      if (filter === 'completed') return task.status === 'completed';
+      return true;
+    })
+    .filter(task => assigneeFilter === 'all' || task.assignedTo === assigneeFilter)
+    .filter(task => empresaFilter === 'all' || task.empresa === empresaFilter);
 
   const inProgressRodrigo = tasks.filter(t => t.assignedTo === 'Rodrigo' && t.status === 'in-progress');
+  const inProgressCristian = tasks.filter(t => t.assignedTo === 'Cristian' && t.status === 'in-progress');
   const inProgressBecario = tasks.filter(t => t.assignedTo === 'Becario' && t.status === 'in-progress');
 
-  const primaryColor = '#112d44';
-  const accentColor = '#eeaa28';
+  if (!currentRole) {
+    return (
+      <div className="min-h-screen bg-[#0a0f1c] text-white flex items-center justify-center px-2 md:px-4">
+        <div className="text-center max-w-2xl w-full">
+          {/* Logos con animación tipo WhatsApp */}
+          <div className="flex justify-center items-center gap-8 md:gap-12 mb-12">
+            <img 
+              src="/LOGO_TIPSTATE.png" 
+              alt="Tipstate" 
+              className="h-14 md:h-16 object-contain animate-bounce-logo" 
+              style={{ animationDelay: '0ms' }}
+            />
+            <img 
+              src="/LOGO_EMGISA.png" 
+              alt="EMGISA" 
+              className="h-14 md:h-16 object-contain animate-bounce-logo" 
+              style={{ animationDelay: '150ms' }}
+            />
+            <img 
+              src="/LOGO_INMOTEGA.png" 
+              alt="INMOTEGA" 
+              className="h-14 md:h-16 object-contain animate-bounce-logo" 
+              style={{ animationDelay: '300ms' }}
+            />
+          </div>
+
+          <h1 className="text-4xl md:text-5xl font-bold text-[#eeaa28] mb-3">TaskFlow</h1>
+          <p className="text-gray-400 mb-12 text-lg">Sistema de Gestión de Tareas</p>
+
+          <div className="space-y-4 w-full px-6 md:px-0 md:max-w-sm md:mx-auto flex flex-col items-stretch md:items-center">
+            <button 
+              onClick={() => setCurrentRole('Alfredo')} 
+              className="w-full md:w-auto md:min-w-48 bg-[#112d44] hover:bg-[#1a3a5c] border border-[#eeaa28]/30 py-5 rounded-3xl text-xl font-semibold transition-all active:scale-95"
+            >
+              Alfredo
+            </button>
+            <button 
+              onClick={() => setCurrentRole('Team Dev')} 
+              className="w-full md:w-auto md:min-w-48 bg-[#eeaa28] hover:bg-[#f5c15a] text-[#112d44] py-5 rounded-3xl text-xl font-semibold transition-all active:scale-95"
+            >
+              Team Dev
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#0a0f1c] text-white pb-12 px-4" style={{ '--primary': primaryColor, '--accent': accentColor }}>
+    <div className="min-h-screen bg-[#0a0f1c] text-white pb-12 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header con Logo */}
-        <div className="flex flex-col items-center pt-8 pb-6">
-          <img
-            src="/LOGO_BLANCOT.png"
-            alt="Logo Empresa"
-            className="h-16 md:h-20 mb-4 object-contain"
-          />
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight" style={{ color: accentColor }}>
-            TaskFlow
-          </h1>
-          <p className="text-gray-400 text-sm mt-1">Gestión de tareas • Horario laboral</p>
+        {/* Header */}
+        <div className="flex justify-between items-center pt-6 pb-4">
+          <div className="flex items-center gap-3">
+            <img src="/LOGO_BLANCOT.png" alt="Logo" className="h-10" />
+            <h1 className="text-3xl font-bold text-[#eeaa28]">TaskFlow</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-400">Rol:</span>
+            <span className="px-4 py-2 bg-[#112d44] rounded-2xl text-[#eeaa28] font-medium">{currentRole}</span>
+            <button onClick={() => setCurrentRole(null)} className="text-sm text-gray-400 hover:text-white">Cambiar</button>
+          </div>
         </div>
 
         {/* En Progreso */}
         <div className="mb-10">
-          <h2 className="text-2xl font-semibold mb-5 px-1 flex items-center gap-2" style={{ color: accentColor }}>
-            ● En Progreso
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            {['Rodrigo', 'Becario'].map(person => {
-              const list = person === 'Rodrigo' ? inProgressRodrigo : inProgressBecario;
+          <h2 className="text-2xl font-semibold mb-5 px-1 text-[#eeaa28]">● En Progreso</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {[
+              { name: 'Rodrigo', color: '#60a5fa' },
+              { name: 'Cristian', color: '#c084fc' },
+              { name: 'Becario', color: '#34d399' }
+            ].map(person => {
+              const list = person.name === 'Rodrigo' ? inProgressRodrigo : person.name === 'Cristian' ? inProgressCristian : inProgressBecario;
               return (
-                <div key={person} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6 hover:border-[#eeaa28]/40 transition-all">
-                  <h3 className="font-semibold mb-4 text-lg" style={{ color: person === 'Rodrigo' ? '#60a5fa' : '#34d399' }}>
-                    📌 {person}
-                  </h3>
-                  {list.length === 0 ? (
-                    <p className="text-gray-500 py-8 text-center">Sin tareas activas</p>
-                  ) : (
+                <div key={person.name} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6">
+                  <h3 className="font-semibold mb-4" style={{ color: person.color }}>📌 {person.name}</h3>
+                  {list.length === 0 ? <p className="text-gray-500 py-6 text-center">Sin tareas</p> : (
                     list.map(task => (
-                      <div key={task.id} className="bg-[#1a2338] rounded-2xl p-4 mb-3 border border-[#eeaa28]/10">
+                      <div key={task.id} className="bg-[#1a2338] rounded-2xl p-4 mb-3">
                         <p>{task.text}</p>
                         <p className="text-xs text-[#eeaa28] mt-2">⏱ {getTimeInProgress(task.createdAt)}</p>
                       </div>
@@ -155,112 +221,142 @@ function App() {
           </div>
         </div>
 
-        {/* Formulario */}
-        <form onSubmit={addTask} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6 md:p-8 mb-10">
-          <div className="space-y-5">
-            <input
-              type="text"
-              value={newTask}
-              onChange={e => setNewTask(e.target.value)}
-              placeholder="¿Qué tarea vas a agregar?"
-              className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-4 text-lg focus:border-[#eeaa28] transition-all"
-              required
-            />
+        {/* Formulario - Solo Team Dev */}
+        {currentRole === 'Team Dev' && (
+          <form onSubmit={addTask} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6 md:p-8 mb-10">
+            <div className="space-y-5">
+              <input type="text" value={newTask} onChange={e => setNewTask(e.target.value)} placeholder="¿Qué tarea vas a agregar?" className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-4 text-lg focus:border-[#eeaa28]" required />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Estado</label>
-                <select value={status} onChange={e => setStatus(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
-                  <option value="pending">Pendiente</option>
-                  <option value="in-progress">En Progreso</option>
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Estado</label>
+                  <select value={status} onChange={e => setStatus(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
+                    <option value="pending">Pendiente</option>
+                    <option value="in-progress">En Progreso</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Prioridad</label>
+                  <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
+                    <option value="alta">Alta</option>
+                    <option value="media">Media</option>
+                    <option value="baja">Baja</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Fecha</label>
+                  <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 text-white" required />
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Hora</label>
+                  <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} min="09:00" max={dueDate && new Date(dueDate).getDay() === 6 ? "13:00" : "17:00"} disabled={!dueDate} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 text-white disabled:opacity-50" />
+                </div>
               </div>
 
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Prioridad</label>
-                <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
-                  <option value="alta">Alta</option>
-                  <option value="media">Media</option>
-                  <option value="baja">Baja</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Fecha</label>
-                <input
-                  type="date"
-                  value={dueDate}
-                  onChange={e => setDueDate(e.target.value)}
-                  className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Hora</label>
-                <input
-                  type="time"
-                  value={dueTime}
-                  onChange={(e) => setDueTime(e.target.value)}
-                  min="09:00"
-                  max={dueDate && new Date(dueDate).getDay() === 6 ? "13:00" : "17:00"}
-                  disabled={!dueDate}
-                  className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 text-white disabled:opacity-50"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Empresa</label>
+                  <select value={empresa} onChange={e => setEmpresa(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
+                    <option value="Tipstate">Tipstate</option>
+                    <option value="EMGISA">EMGISA</option>
+                    <option value="INMOTEGA">INMOTEGA</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Asignado a</label>
+                  <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
+                    <option value="Rodrigo">Rodrigo</option>
+                    <option value="Cristian">Cristian</option>
+                    <option value="Becario">Becario</option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Asignado a</label>
-              <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 text-lg focus:border-[#eeaa28]">
-                <option value="Rodrigo">Rodrigo</option>
-                <option value="Becario">Becario</option>
-              </select>
-            </div>
+            <button type="submit" className="mt-8 w-full py-4 rounded-2xl font-semibold text-lg transition-all active:scale-95" style={{ backgroundColor: '#eeaa28', color: '#112d44' }}>
+              + Agregar Tarea
+            </button>
+          </form>
+        )}
+
+        {/* Filtros Full Width */}
+        <div className="w-full bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-4 mb-6">
+          <div className="flex flex-wrap justify-center gap-3">
+            {['all', 'pending', 'completed'].map(f => (
+              <button key={f} onClick={() => setFilter(f)} className={`px-6 py-3 rounded-2xl text-sm font-medium transition-all ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-900 hover:bg-gray-800'}`}>
+                {f === 'all' && 'Todas'}
+                {f === 'pending' && 'Pendientes'}
+                {f === 'completed' && 'Completadas'}
+              </button>
+            ))}
+
+            <select value={empresaFilter} onChange={e => setEmpresaFilter(e.target.value)} className="bg-gray-900 border border-gray-700 rounded-2xl px-5 py-3 text-sm">
+              <option value="all">Todas las empresas</option>
+              <option value="Tipstate">Tipstate</option>
+              <option value="EMGISA">EMGISA</option>
+              <option value="INMOTEGA">INMOTEGA</option>
+            </select>
+
+            <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="bg-gray-900 border border-gray-700 rounded-2xl px-5 py-3 text-sm">
+              <option value="all">Todos los asignados</option>
+              <option value="Rodrigo">Rodrigo</option>
+              <option value="Cristian">Cristian</option>
+              <option value="Becario">Becario</option>
+            </select>
           </div>
-
-          <button
-            type="submit"
-            className="mt-8 w-full py-4 rounded-2xl font-semibold text-lg transition-all active:scale-95"
-            style={{ backgroundColor: '#eeaa28', color: '#112d44' }}
-          >
-            + Agregar Tarea
-          </button>
-        </form>
+        </div>
 
         {/* Lista de tareas */}
         <div className="space-y-4">
           {filteredTasks.map((task, index) => {
             const overdue = task.status !== 'completed' && new Date(`${task.dueDate}T${task.dueTime}`) < new Date();
             return (
-              <div key={task.id} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6 hover:border-[#eeaa28] transition-all"
-                style={{ animationDelay: `${index * 40}ms` }}>
+              <div key={task.id} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6 hover:border-[#eeaa28] transition-all" style={{ animationDelay: `${index * 40}ms` }}>
                 <div className="flex gap-4">
-                  <input type="checkbox" checked={task.status === 'completed'} onChange={() => updateTaskStatus(task.id, task.status === 'completed' ? 'pending' : 'completed')} className="mt-2 accent-[#eeaa28] w-6 h-6" />
+                  <input
+                    type="checkbox"
+                    checked={task.status === 'completed'}
+                    onChange={() => updateTaskStatus(task.id, task.status === 'completed' ? 'pending' : 'completed')}
+                    className="mt-2 accent-[#eeaa28] w-6 h-6"
+                    disabled={currentRole === 'Alfredo'}
+                  />
 
                   <div className="flex-1">
                     {editingId === task.id ? (
-                      <input type="text" value={editText} onChange={e => setEditText(e.target.value)} onBlur={saveEdit} className="w-full bg-[#0f1a2e] border border-[#eeaa28] rounded-2xl px-4 py-3" autoFocus />
+                      <input
+                        type="text"
+                        value={editText}
+                        onChange={e => setEditText(e.target.value)}
+                        onBlur={saveEdit}
+                        className="w-full bg-[#0f1a2e] border border-[#eeaa28] rounded-2xl px-4 py-3"
+                        autoFocus
+                      />
                     ) : (
                       <p className={`text-[17px] ${task.status === 'completed' ? 'line-through text-gray-500' : ''}`}>{task.text}</p>
                     )}
 
                     <div className="flex flex-wrap gap-3 mt-3 text-xs">
-                      <span className={`px-3 py-1 rounded-full text-black font-medium ${task.priority === 'alta' ? 'bg-red-500' : task.priority === 'media' ? 'bg-yellow-500' : 'bg-green-500'}`}>
-                        {task.priority}
-                      </span>
+                      <span className={`px-3 py-1 rounded-full text-black font-medium ${task.priority === 'alta' ? 'bg-red-500' : task.priority === 'media' ? 'bg-yellow-500' : 'bg-green-500'}`}>{task.priority}</span>
                       <span className="text-gray-400">{new Date(task.dueDate).toLocaleDateString('es-MX')} • {task.dueTime}</span>
                       <span>👤 {task.assignedTo}</span>
+                      <span className="text-[#eeaa28]">{task.empresa}</span>
                       {task.status === 'in-progress' && <span className="text-[#eeaa28]">⏱ {getTimeInProgress(task.createdAt)}</span>}
                     </div>
                   </div>
-
-                  <div className="flex flex-col gap-1.5 text-xl">
-                    {task.status !== 'completed' && <button onClick={() => updateTaskStatus(task.id, 'in-progress')} className="hover:bg-[#eeaa28]/20 p-2 rounded-xl">▶️</button>}
-                    <button onClick={() => startEditing(task)} className="hover:bg-gray-700 p-2 rounded-xl">✏️</button>
-                    <button onClick={() => deleteTask(task.id)} className="hover:bg-red-900/50 p-2 rounded-xl text-red-400">🗑️</button>
-                  </div>
                 </div>
+
+                {/* Botones solo visibles para Team Dev */}
+                {currentRole === 'Team Dev' && (
+                  <div className="flex justify-end gap-2 mt-6 border-t border-gray-700 pt-4">
+                    {task.status !== 'completed' && (
+                      <button onClick={() => updateTaskStatus(task.id, 'in-progress')} className="px-5 py-2 hover:bg-yellow-900/30 rounded-2xl transition-colors">▶️ En Progreso</button>
+                    )}
+                    <button onClick={() => startEditing(task)} className="px-5 py-2 hover:bg-gray-700 rounded-2xl transition-colors">✏️ Editar</button>
+                    <button onClick={() => deleteTask(task.id)} className="px-5 py-2 hover:bg-red-900/50 text-red-400 rounded-2xl transition-colors">🗑️ Eliminar</button>
+                  </div>
+                )}
               </div>
             );
           })}
