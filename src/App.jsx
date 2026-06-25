@@ -14,6 +14,12 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+const COMPANY_LOGOS = [
+  { src: '/LOGO_TIPSTATE.png', alt: 'Tipstate' },
+  { src: '/LOGO_EMGISA.png', alt: 'EMGISA' },
+  { src: '/LOGO_INMOTEGA.png', alt: 'INMOTEGA' },
+];
+
 function App() {
   const [currentRole, setCurrentRole] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -30,6 +36,14 @@ function App() {
   const [empresaFilter, setEmpresaFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
+  const [logoIndex, setLogoIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setLogoIndex(prev => (prev + 1) % COMPANY_LOGOS.length);
+    }, 2500);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const q = query(collection(db, "tasks"), orderBy("createdAt", "desc"));
@@ -182,17 +196,43 @@ function App() {
     <div className="min-h-screen bg-[#0a0f1c] text-white pb-12 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex justify-between items-center pt-6 pb-4">
-          <div className="flex items-center gap-3">
-            <img src="/LOGO_BLANCOT.png" alt="Logo" className="h-10" />
-            <h1 className="text-3xl font-bold text-[#eeaa28]">TaskFlow</h1>
+        <header className="pt-5 pb-4 md:pt-6 border-b border-[#eeaa28]/15 mb-2">
+          <div className="flex flex-col gap-3 md:flex-row md:justify-between md:items-center">
+            <div className="flex items-center justify-center md:justify-start gap-2.5 md:gap-4">
+              <img
+                key={logoIndex}
+                src={COMPANY_LOGOS[logoIndex].src}
+                alt={COMPANY_LOGOS[logoIndex].alt}
+                className="h-9 w-20 object-contain md:hidden animate-logo-swap"
+              />
+              <div className="hidden md:flex items-center gap-6">
+                {COMPANY_LOGOS.map((logo, i) => (
+                  <img
+                    key={logo.src}
+                    src={logo.src}
+                    alt={logo.alt}
+                    className="h-10 object-contain animate-bounce-logo"
+                    style={{ animationDelay: `${i * 150}ms` }}
+                  />
+                ))}
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#eeaa28] tracking-tight">TaskFlow</h1>
+            </div>
+
+            <div className="flex items-center justify-center md:justify-end gap-2 md:gap-4">
+              <div className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-[#112d44]/80 border border-[#eeaa28]/20 rounded-2xl">
+                <span className="text-xs md:text-sm text-gray-400">Rol</span>
+                <span className="text-sm md:text-base text-[#eeaa28] font-medium">{currentRole}</span>
+              </div>
+              <button
+                onClick={() => setCurrentRole(null)}
+                className="text-xs md:text-sm px-3 py-1.5 md:px-0 md:py-0 text-gray-400 hover:text-white border border-gray-700 md:border-0 rounded-xl md:rounded-none transition-colors"
+              >
+                Cambiar
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-400">Rol:</span>
-            <span className="px-4 py-2 bg-[#112d44] rounded-2xl text-[#eeaa28] font-medium">{currentRole}</span>
-            <button onClick={() => setCurrentRole(null)} className="text-sm text-gray-400 hover:text-white">Cambiar</button>
-          </div>
-        </div>
+        </header>
 
         {/* En Progreso */}
         <div className="mb-10">
@@ -283,28 +323,32 @@ function App() {
 
         {/* Filtros Full Width */}
         <div className="w-full bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-4 mb-6">
-          <div className="flex flex-wrap justify-center gap-3">
-            {['all', 'pending', 'completed'].map(f => (
-              <button key={f} onClick={() => setFilter(f)} className={`px-6 py-3 rounded-2xl text-sm font-medium transition-all ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-900 hover:bg-gray-800'}`}>
-                {f === 'all' && 'Todas'}
-                {f === 'pending' && 'Pendientes'}
-                {f === 'completed' && 'Completadas'}
-              </button>
-            ))}
+          <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:justify-center md:gap-3">
+            <div className="flex flex-wrap justify-center gap-3 md:contents">
+              {['all', 'pending', 'completed'].map(f => (
+                <button key={f} onClick={() => setFilter(f)} className={`px-6 py-3 rounded-2xl text-sm font-medium transition-all ${filter === f ? 'bg-blue-600 text-white' : 'bg-gray-900 hover:bg-gray-800'}`}>
+                  {f === 'all' && 'Todas'}
+                  {f === 'pending' && 'Pendientes'}
+                  {f === 'completed' && 'Completadas'}
+                </button>
+              ))}
+            </div>
 
-            <select value={empresaFilter} onChange={e => setEmpresaFilter(e.target.value)} className="bg-gray-900 border border-gray-700 rounded-2xl px-5 py-3 text-sm">
-              <option value="all">Todas las empresas</option>
-              <option value="Tipstate">Tipstate</option>
-              <option value="EMGISA">EMGISA</option>
-              <option value="INMOTEGA">INMOTEGA</option>
-            </select>
+            <div className="flex flex-nowrap justify-center gap-2 w-full md:contents">
+              <select value={empresaFilter} onChange={e => setEmpresaFilter(e.target.value)} className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-2xl px-3 py-3 text-xs md:flex-none md:px-5 md:text-sm">
+                <option value="all">Todas las empresas</option>
+                <option value="Tipstate">Tipstate</option>
+                <option value="EMGISA">EMGISA</option>
+                <option value="INMOTEGA">INMOTEGA</option>
+              </select>
 
-            <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="bg-gray-900 border border-gray-700 rounded-2xl px-5 py-3 text-sm">
-              <option value="all">Todos los asignados</option>
-              <option value="Rodrigo">Rodrigo</option>
-              <option value="Cristian">Cristian</option>
-              <option value="Becario">Becario</option>
-            </select>
+              <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)} className="flex-1 min-w-0 bg-gray-900 border border-gray-700 rounded-2xl px-3 py-3 text-xs md:flex-none md:px-5 md:text-sm">
+                <option value="all">Todos los asignados</option>
+                <option value="Rodrigo">Rodrigo</option>
+                <option value="Cristian">Cristian</option>
+                <option value="Becario">Becario</option>
+              </select>
+            </div>
           </div>
         </div>
 
