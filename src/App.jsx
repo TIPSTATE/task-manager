@@ -72,7 +72,10 @@ function App() {
     setNewTask('');
     setPriority('media');
     setStatus('pending');
+    setDueDate('');
     setDueTime('12:00');
+    setAssignedTo('Rodrigo');
+    setEmpresa('Tipstate');
   };
 
   const updateTaskStatus = async (id, newStatus) => {
@@ -393,12 +396,18 @@ function App() {
 
                 {/* Botones solo visibles para Team Dev */}
                 {currentRole === 'Team Dev' && (
-                  <div className="flex justify-end gap-2 mt-6 border-t border-gray-700 pt-4">
+                  <div className="flex justify-center md:justify-end gap-2 mt-6 border-t border-gray-700 pt-4">
                     {task.status !== 'completed' && (
-                      <button onClick={() => updateTaskStatus(task.id, 'in-progress')} className="px-5 py-2 hover:bg-yellow-900/30 rounded-2xl transition-colors">▶️ En Progreso</button>
+                      <button onClick={() => updateTaskStatus(task.id, 'in-progress')} aria-label="En Progreso" className="px-3 py-2 md:px-5 hover:bg-yellow-900/30 rounded-2xl transition-colors">
+                        ▶️<span className="hidden md:inline"> En Progreso</span>
+                      </button>
                     )}
-                    <button onClick={() => startEditing(task)} className="px-5 py-2 hover:bg-gray-700 rounded-2xl transition-colors">✏️ Editar</button>
-                    <button onClick={() => deleteTask(task.id)} className="px-5 py-2 hover:bg-red-900/50 text-red-400 rounded-2xl transition-colors">🗑️ Eliminar</button>
+                    <button onClick={() => startEditing(task)} aria-label="Editar" className="px-3 py-2 md:px-5 hover:bg-gray-700 rounded-2xl transition-colors">
+                      ✏️<span className="hidden md:inline"> Editar</span>
+                    </button>
+                    <button onClick={() => deleteTask(task.id)} aria-label="Eliminar" className="px-3 py-2 md:px-5 hover:bg-red-900/50 text-red-400 rounded-2xl transition-colors">
+                      🗑️<span className="hidden md:inline"> Eliminar</span>
+                    </button>
                   </div>
                 )}
               </div>
