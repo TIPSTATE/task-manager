@@ -5,7 +5,11 @@ import { formatBusinessDuration, formatDateTime } from './lib/businessHours';
 import AlfredoTaskView from './components/AlfredoTaskView';
 import InProgressSection from './components/InProgressSection';
 import LunchBreakButton from './components/LunchBreakButton';
+import ToastContainer from './components/ToastContainer';
 import { useLiveClock } from './hooks/useLiveClock';
+import { useToast } from './hooks/useToast';
+
+const APP_VERSION = '2.1.0';
 
 const COMPANY_LOGOS = [
   { src: '/LOGO_TIPSTATE.png', alt: 'Tipstate' },
@@ -27,7 +31,9 @@ function App() {
   const [empresaFilter, setEmpresaFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
+  const [isAddingTask, setIsAddingTask] = useState(false);
   const [logoIndex, setLogoIndex] = useState(0);
+  const { toasts, showToast, dismissToast } = useToast();
   useLiveClock(lunchBreaks);
 
   useEffect(() => {
@@ -49,38 +55,57 @@ function App() {
 
   const addTask = async (e) => {
     e.preventDefault();
-    if (!newTask.trim()) return;
+    if (!newTask.trim() || isAddingTask) return;
 
-    await createTask({
-      text: newTask.trim(),
-      priority,
-      assignedTo,
-      empresa,
-    });
+    setIsAddingTask(true);
+    try {
+      await createTask({
+        text: newTask.trim(),
+        priority,
+        assignedTo,
+        empresa,
+      });
 
-    setNewTask('');
-    setPriority('media');
-    setAssignedTo('Rodrigo');
-    setEmpresa('Tipstate');
+      setNewTask('');
+      setPriority('media');
+      setAssignedTo('Rodrigo');
+      setEmpresa('Tipstate');
+      showToast('Tarea creada correctamente');
+    } catch {
+      showToast('No se pudo crear la tarea', 'error');
+    } finally {
+      setIsAddingTask(false);
+    }
   };
 
   const toggleComplete = async (task) => {
-    if (task.status === 'completed') {
-      await updateTask(task.id, { status: 'pending', completedAt: null });
-    } else {
-      await updateTask(task.id, {
-        status: 'completed',
-        completedAt: new Date().toISOString(),
-      });
+    try {
+      if (task.status === 'completed') {
+        await updateTask(task.id, { status: 'pending', completedAt: null });
+        showToast('Tarea marcada como pendiente');
+      } else {
+        await updateTask(task.id, {
+          status: 'completed',
+          completedAt: new Date().toISOString(),
+        });
+        showToast('Tarea completada');
+      }
+    } catch {
+      showToast('No se pudo actualizar la tarea', 'error');
     }
   };
 
   const markInProgress = async (task) => {
-    const updates = { status: 'in-progress' };
-    if (!task.startedAt) {
-      updates.startedAt = new Date().toISOString();
+    try {
+      const updates = { status: 'in-progress' };
+      if (!task.startedAt) {
+        updates.startedAt = new Date().toISOString();
+      }
+      await updateTask(task.id, updates);
+      showToast('Tarea en progreso');
+    } catch {
+      showToast('No se pudo iniciar la tarea', 'error');
     }
-    await updateTask(task.id, updates);
   };
 
   const getProgressEnd = (task) => {
@@ -91,7 +116,12 @@ function App() {
   const getProgressStart = (task) => task.startedAt ?? task.createdAt;
 
   const deleteTaskById = async (id) => {
-    await deleteTask(id);
+    try {
+      await deleteTask(id);
+      showToast('Tarea eliminada');
+    } catch {
+      showToast('No se pudo eliminar la tarea', 'error');
+    }
   };
 
   const startEditing = (task) => {
@@ -101,7 +131,20 @@ function App() {
 
   const saveEdit = async () => {
     if (!editText.trim() || !editingId) return;
-    await updateTask(editingId, { text: editText.trim() });
+
+    const task = tasks.find(t => t.id === editingId);
+    if (task && editText.trim() === task.text) {
+      setEditingId(null);
+      setEditText('');
+      return;
+    }
+
+    try {
+      await updateTask(editingId, { text: editText.trim() });
+      showToast('Tarea actualizada');
+    } catch {
+      showToast('No se pudo actualizar la tarea', 'error');
+    }
     setEditingId(null);
     setEditText('');
   };
@@ -117,7 +160,7 @@ function App() {
 
   if (!currentRole) {
     return (
-      <div className="min-h-screen bg-[#0a0f1c] text-white flex items-center justify-center px-2 md:px-4">
+      <div className="min-h-screen bg-[#0a0f1c] text-white flex flex-col items-center justify-center px-2 md:px-4 relative">
         <div className="text-center max-w-2xl w-full">
           {/* Logos con animación tipo WhatsApp */}
           <div className="flex justify-center items-center gap-8 md:gap-12 mb-12">
@@ -159,6 +202,10 @@ function App() {
             </button>
           </div>
         </div>
+
+        <p className="absolute bottom-6 md:bottom-8 text-[10px] md:text-[11px] text-gray-600 font-medium tracking-[0.25em] uppercase select-none">
+          v{APP_VERSION}
+        </p>
       </div>
     );
   }
@@ -214,7 +261,7 @@ function App() {
         />
 
         {currentRole === 'Team Dev' && (
-          <LunchBreakButton lunchBreaks={lunchBreaks} />
+          <LunchBreakButton lunchBreaks={lunchBreaks} onToast={showToast} />
         )}
 
         {/* Formulario - Solo Team Dev */}
@@ -252,8 +299,13 @@ function App() {
               </div>
             </div>
 
-            <button type="submit" className="mt-8 w-full py-4 rounded-2xl font-semibold text-lg transition-all active:scale-95" style={{ backgroundColor: '#eeaa28', color: '#112d44' }}>
-              + Agregar Tarea
+            <button
+              type="submit"
+              disabled={isAddingTask || !newTask.trim()}
+              className="mt-8 w-full py-4 rounded-2xl font-semibold text-lg transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+              style={{ backgroundColor: '#eeaa28', color: '#112d44' }}
+            >
+              {isAddingTask ? 'Agregando tarea…' : '+ Agregar Tarea'}
             </button>
           </form>
         )}
@@ -360,6 +412,10 @@ function App() {
         </div>
         )}
       </div>
+
+      {currentRole === 'Team Dev' && (
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      )}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { isWithinBusinessHours, isWeekday } from '../lib/businessHours';
 
 const LUNCH_PASSWORD = 'genexis321';
 
-export default function LunchBreakButton({ lunchBreaks }) {
+export default function LunchBreakButton({ lunchBreaks, onToast }) {
   const [showModal, setShowModal] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -30,8 +30,10 @@ export default function LunchBreakButton({ lunchBreaks }) {
       await startLunchBreak();
       setShowModal(false);
       setPassword('');
+      onToast?.('Hora de comida registrada');
     } catch {
       setError('No se pudo registrar la hora de comida');
+      onToast?.('No se pudo registrar la hora de comida', 'error');
     } finally {
       setSubmitting(false);
     }
