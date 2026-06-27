@@ -5,12 +5,12 @@ function mapTaskFromDb(row) {
     id: row.id,
     text: row.text,
     priority: row.priority,
-    dueDate: row.due_date,
-    dueTime: row.due_time,
     assignedTo: row.assigned_to,
     empresa: row.empresa,
     status: row.status,
     createdAt: row.created_at,
+    startedAt: row.started_at,
+    completedAt: row.completed_at,
   };
 }
 
@@ -64,11 +64,9 @@ export async function createTask(task) {
   const { error } = await supabase.from('tasks').insert({
     text: task.text,
     priority: task.priority,
-    due_date: task.dueDate,
-    due_time: task.dueTime,
     assigned_to: task.assignedTo,
     empresa: task.empresa,
-    status: task.status,
+    status: 'pending',
   });
 
   if (error) throw error;
@@ -80,10 +78,10 @@ export async function updateTask(id, updates) {
   if (updates.text !== undefined) dbUpdates.text = updates.text;
   if (updates.status !== undefined) dbUpdates.status = updates.status;
   if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
-  if (updates.dueDate !== undefined) dbUpdates.due_date = updates.dueDate;
-  if (updates.dueTime !== undefined) dbUpdates.due_time = updates.dueTime;
   if (updates.assignedTo !== undefined) dbUpdates.assigned_to = updates.assignedTo;
   if (updates.empresa !== undefined) dbUpdates.empresa = updates.empresa;
+  if (updates.startedAt !== undefined) dbUpdates.started_at = updates.startedAt;
+  if (updates.completedAt !== undefined) dbUpdates.completed_at = updates.completedAt;
 
   const { error } = await supabase.from('tasks').update(dbUpdates).eq('id', id);
 

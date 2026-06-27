@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
 import { subscribeToTasks, createTask, updateTask, deleteTask } from './lib/tasks';
+import { subscribeToLunchBreaks } from './lib/lunchBreaks';
+import { formatBusinessDuration, formatDateTime } from './lib/businessHours';
+import AlfredoTaskView from './components/AlfredoTaskView';
+import InProgressSection from './components/InProgressSection';
+import LunchBreakButton from './components/LunchBreakButton';
+import { useLiveClock } from './hooks/useLiveClock';
 
 const COMPANY_LOGOS = [
   { src: '/LOGO_TIPSTATE.png', alt: 'Tipstate' },
@@ -10,13 +16,11 @@ const COMPANY_LOGOS = [
 function App() {
   const [currentRole, setCurrentRole] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [lunchBreaks, setLunchBreaks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [priority, setPriority] = useState('media');
-  const [dueDate, setDueDate] = useState('');
-  const [dueTime, setDueTime] = useState('12:00');
   const [assignedTo, setAssignedTo] = useState('Rodrigo');
   const [empresa, setEmpresa] = useState('Tipstate');
-  const [status, setStatus] = useState('pending');
 
   const [filter, setFilter] = useState('all');
   const [assigneeFilter, setAssigneeFilter] = useState('all');
@@ -24,6 +28,7 @@ function App() {
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
   const [logoIndex, setLogoIndex] = useState(0);
+  useLiveClock(lunchBreaks);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -37,32 +42,53 @@ function App() {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    const unsubscribe = subscribeToLunchBreaks(setLunchBreaks);
+    return unsubscribe;
+  }, []);
+
   const addTask = async (e) => {
     e.preventDefault();
-    if (!newTask.trim() || !dueDate) return;
+    if (!newTask.trim()) return;
 
     await createTask({
       text: newTask.trim(),
       priority,
-      dueDate,
-      dueTime,
       assignedTo,
       empresa,
-      status,
     });
 
     setNewTask('');
     setPriority('media');
-    setStatus('pending');
-    setDueDate('');
-    setDueTime('12:00');
     setAssignedTo('Rodrigo');
     setEmpresa('Tipstate');
   };
 
-  const updateTaskStatus = async (id, newStatus) => {
-    await updateTask(id, { status: newStatus });
+  const toggleComplete = async (task) => {
+    if (task.status === 'completed') {
+      await updateTask(task.id, { status: 'pending', completedAt: null });
+    } else {
+      await updateTask(task.id, {
+        status: 'completed',
+        completedAt: new Date().toISOString(),
+      });
+    }
   };
+
+  const markInProgress = async (task) => {
+    const updates = { status: 'in-progress' };
+    if (!task.startedAt) {
+      updates.startedAt = new Date().toISOString();
+    }
+    await updateTask(task.id, updates);
+  };
+
+  const getProgressEnd = (task) => {
+    if (task.status === 'completed' && task.completedAt) return task.completedAt;
+    return new Date();
+  };
+
+  const getProgressStart = (task) => task.startedAt ?? task.createdAt;
 
   const deleteTaskById = async (id) => {
     await deleteTask(id);
@@ -80,42 +106,6 @@ function App() {
     setEditText('');
   };
 
-  const getBusinessHoursElapsed = (createdAt) => {
-    const start = new Date(createdAt);
-    const now = new Date();
-    let totalHours = 0;
-    let current = new Date(start);
-
-    while (current < now) {
-      const day = current.getDay();
-      let workEndHour = (day === 6) ? 13 : 17;
-      if (day !== 0) {
-        const dayStart = new Date(current); dayStart.setHours(9, 0, 0, 0);
-        const dayEnd = new Date(current); dayEnd.setHours(workEndHour, 0, 0, 0);
-
-        const effectiveStart = current > dayStart ? current : dayStart;
-        const effectiveEnd = now < dayEnd ? now : dayEnd;
-
-        if (effectiveStart < effectiveEnd) {
-          totalHours += (effectiveEnd - effectiveStart) / (1000 * 60 * 60);
-        }
-      }
-      current.setDate(current.getDate() + 1);
-      current.setHours(0, 0, 0, 0);
-    }
-    return Math.floor(totalHours);
-  };
-
-  const getTimeInProgress = (createdAt) => {
-    const hours = getBusinessHoursElapsed(createdAt);
-    if (hours < 1) return "menos de 1 hora";
-    if (hours === 1) return "1 hora";
-    if (hours < 8) return `${hours} horas`;
-    const days = Math.floor(hours / 8);
-    const rem = hours % 8;
-    return rem === 0 ? `${days} día${days > 1 ? 's' : ''}` : `${days} día${days > 1 ? 's' : ''} y ${rem} hora${rem > 1 ? 's' : ''}`;
-  };
-
   const filteredTasks = tasks
     .filter(task => {
       if (filter === 'pending') return task.status !== 'completed';
@@ -124,10 +114,6 @@ function App() {
     })
     .filter(task => assigneeFilter === 'all' || task.assignedTo === assigneeFilter)
     .filter(task => empresaFilter === 'all' || task.empresa === empresaFilter);
-
-  const inProgressRodrigo = tasks.filter(t => t.assignedTo === 'Rodrigo' && t.status === 'in-progress');
-  const inProgressCristian = tasks.filter(t => t.assignedTo === 'Christian' && t.status === 'in-progress');
-  const inProgressBecario = tasks.filter(t => t.assignedTo === 'Becario' && t.status === 'in-progress');
 
   if (!currentRole) {
     return (
@@ -220,31 +206,16 @@ function App() {
         </header>
 
         {/* En Progreso */}
-        <div className="mb-10">
-          <h2 className="text-2xl font-semibold mb-5 px-1 text-[#eeaa28]">● En Progreso</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              { name: 'Rodrigo', color: '#60a5fa' },
-              { name: 'Christian', color: '#c084fc' },
-              { name: 'Becario', color: '#34d399' }
-            ].map(person => {
-              const list = person.name === 'Rodrigo' ? inProgressRodrigo : person.name === 'Christian' ? inProgressCristian : inProgressBecario;
-              return (
-                <div key={person.name} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6">
-                  <h3 className="font-semibold mb-4" style={{ color: person.color }}>📌 {person.name}</h3>
-                  {list.length === 0 ? <p className="text-gray-500 py-6 text-center">Sin tareas</p> : (
-                    list.map(task => (
-                      <div key={task.id} className="bg-[#1a2338] rounded-2xl p-4 mb-3">
-                        <p>{task.text}</p>
-                        <p className="text-xs text-[#eeaa28] mt-2">⏱ {getTimeInProgress(task.createdAt)}</p>
-                      </div>
-                    ))
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <InProgressSection
+          tasks={tasks}
+          lunchBreaks={lunchBreaks}
+          getProgressStart={getProgressStart}
+          getProgressEnd={getProgressEnd}
+        />
+
+        {currentRole === 'Team Dev' && (
+          <LunchBreakButton lunchBreaks={lunchBreaks} />
+        )}
 
         {/* Formulario - Solo Team Dev */}
         {currentRole === 'Team Dev' && (
@@ -254,13 +225,6 @@ function App() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-gray-400 block mb-1">Estado</label>
-                  <select value={status} onChange={e => setStatus(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
-                    <option value="pending">Pendiente</option>
-                    <option value="in-progress">En Progreso</option>
-                  </select>
-                </div>
-                <div>
                   <label className="text-xs text-gray-400 block mb-1">Prioridad</label>
                   <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
                     <option value="alta">Alta</option>
@@ -268,19 +232,6 @@ function App() {
                     <option value="baja">Baja</option>
                   </select>
                 </div>
-
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Fecha</label>
-                  <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 text-white" required />
-                </div>
-
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Hora</label>
-                  <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)} min="09:00" max={dueDate && new Date(dueDate).getDay() === 6 ? "13:00" : "17:00"} disabled={!dueDate} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 text-white disabled:opacity-50" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-xs text-gray-400 block mb-1">Empresa</label>
                   <select value={empresa} onChange={e => setEmpresa(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
@@ -289,14 +240,15 @@ function App() {
                     <option value="INMOTEGA">INMOTEGA</option>
                   </select>
                 </div>
-                <div>
-                  <label className="text-xs text-gray-400 block mb-1">Asignado a</label>
-                  <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
-                    <option value="Rodrigo">Rodrigo</option>
-                    <option value="Christian">Christian</option>
-                    <option value="Becario">Becario</option>
-                  </select>
-                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-400 block mb-1">Asignado a</label>
+                <select value={assignedTo} onChange={e => setAssignedTo(e.target.value)} className="w-full bg-[#0f1a2e] border border-[#eeaa28]/30 rounded-2xl px-5 py-3.5 focus:border-[#eeaa28]">
+                  <option value="Rodrigo">Rodrigo</option>
+                  <option value="Christian">Christian</option>
+                  <option value="Becario">Becario</option>
+                </select>
               </div>
             </div>
 
@@ -338,20 +290,25 @@ function App() {
         </div>
 
         {/* Lista de tareas */}
+        {currentRole === 'Alfredo' ? (
+          <AlfredoTaskView
+            tasks={filteredTasks}
+            lunchBreaks={lunchBreaks}
+            getProgressStart={getProgressStart}
+            getProgressEnd={getProgressEnd}
+          />
+        ) : (
         <div className="space-y-4">
           {filteredTasks.map((task, index) => {
-            const overdue = task.status !== 'completed' && new Date(`${task.dueDate}T${task.dueTime}`) < new Date();
             return (
               <div key={task.id} className="bg-[#112d44]/30 border border-[#eeaa28]/20 rounded-3xl p-6 hover:border-[#eeaa28] transition-all" style={{ animationDelay: `${index * 40}ms` }}>
                 <div className="flex gap-4">
-                  {currentRole !== 'Alfredo' && (
-                    <input
-                      type="checkbox"
-                      checked={task.status === 'completed'}
-                      onChange={() => updateTaskStatus(task.id, task.status === 'completed' ? 'pending' : 'completed')}
-                      className="mt-2 accent-[#eeaa28] w-6 h-6"
-                    />
-                  )}
+                  <input
+                    type="checkbox"
+                    checked={task.status === 'completed'}
+                    onChange={() => toggleComplete(task)}
+                    className="mt-2 accent-[#eeaa28] w-6 h-6"
+                  />
 
                   <div className="flex-1">
                     {editingId === task.id ? (
@@ -369,34 +326,39 @@ function App() {
 
                     <div className="flex flex-wrap gap-3 mt-3 text-xs">
                       <span className={`px-3 py-1 rounded-full text-black font-medium ${task.priority === 'alta' ? 'bg-red-500' : task.priority === 'media' ? 'bg-yellow-500' : 'bg-green-500'}`}>{task.priority}</span>
-                      <span className="text-gray-400">{new Date(task.dueDate).toLocaleDateString('es-MX')} • {task.dueTime}</span>
                       <span>👤 {task.assignedTo}</span>
                       <span className="text-[#eeaa28]">{task.empresa}</span>
-                      {task.status === 'in-progress' && <span className="text-[#eeaa28]">⏱ {getTimeInProgress(task.createdAt)}</span>}
+                      {task.status === 'in-progress' && (
+                        <span className="text-[#eeaa28]">⏱ {formatBusinessDuration(getProgressStart(task), getProgressEnd(task), lunchBreaks)}</span>
+                      )}
+                      {task.status === 'completed' && task.completedAt && (
+                        <span className="text-green-400">✓ Completada {formatDateTime(task.completedAt)}</span>
+                      )}
+                      {task.status === 'completed' && task.startedAt && (
+                        <span className="text-gray-400">⏱ {formatBusinessDuration(task.startedAt, task.completedAt, lunchBreaks)} en progreso</span>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Botones solo visibles para Team Dev */}
-                {currentRole === 'Team Dev' && (
-                  <div className="flex justify-center md:justify-end gap-2 mt-6 border-t border-gray-700 pt-4">
-                    {task.status !== 'completed' && (
-                      <button onClick={() => updateTaskStatus(task.id, 'in-progress')} aria-label="En Progreso" className="px-3 py-2 md:px-5 hover:bg-yellow-900/30 rounded-2xl transition-colors">
-                        ▶️<span className="hidden md:inline"> En Progreso</span>
-                      </button>
-                    )}
-                    <button onClick={() => startEditing(task)} aria-label="Editar" className="px-3 py-2 md:px-5 hover:bg-gray-700 rounded-2xl transition-colors">
-                      ✏️<span className="hidden md:inline"> Editar</span>
+                <div className="flex justify-center md:justify-end gap-2 mt-6 border-t border-gray-700 pt-4">
+                  {task.status !== 'completed' && (
+                    <button onClick={() => markInProgress(task)} aria-label="En Progreso" className="px-3 py-2 md:px-5 hover:bg-yellow-900/30 rounded-2xl transition-colors">
+                      ▶️<span className="hidden md:inline"> En Progreso</span>
                     </button>
-                    <button onClick={() => deleteTaskById(task.id)} aria-label="Eliminar" className="px-3 py-2 md:px-5 hover:bg-red-900/50 text-red-400 rounded-2xl transition-colors">
-                      🗑️<span className="hidden md:inline"> Eliminar</span>
-                    </button>
-                  </div>
-                )}
+                  )}
+                  <button onClick={() => startEditing(task)} aria-label="Editar" className="px-3 py-2 md:px-5 hover:bg-gray-700 rounded-2xl transition-colors">
+                    ✏️<span className="hidden md:inline"> Editar</span>
+                  </button>
+                  <button onClick={() => deleteTaskById(task.id)} aria-label="Eliminar" className="px-3 py-2 md:px-5 hover:bg-red-900/50 text-red-400 rounded-2xl transition-colors">
+                    🗑️<span className="hidden md:inline"> Eliminar</span>
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
+        )}
       </div>
     </div>
   );
