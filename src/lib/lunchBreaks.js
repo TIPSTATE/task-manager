@@ -26,7 +26,8 @@ export function subscribeToLunchBreaks(onBreaks, onError) {
       if (active) onBreaks(breaks);
     })
     .catch(error => {
-      console.error('Error al cargar horas de comida:', error);
+      console.error('Error al cargar horas de comida:', error.message ?? error);
+      if (active) onBreaks([]);
       onError?.(error);
     });
 
